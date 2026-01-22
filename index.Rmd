@@ -7,12 +7,21 @@ output:
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(
+  echo       = FALSE,
+  include = FALSE,
+  message    = FALSE,
+  warning    = FALSE,
+  out.width  = "65%",
+  fig.height = 3,
+  fig.width = 2
+)
 ```
 
-```{r libraries, include=FALSE, error=FALSE}
+```{r libraries}
 library(readxl)
 library(tidyverse)
+library(stringr)
 library(factoextra)
 library(sf)
 library(lwgeom)
@@ -20,7 +29,7 @@ library(plotly)
 library(leaflet)
 ```
 
-```{r zip, include=FALSE}
+```{r zip}
 zip_shp <- st_read("C:/Users/amaan/Desktop/Project/GIS/ZIP_Codes_in_Durham_County/ZIP_Codes_in_Durham_County.shp", quiet = TRUE)
 zip_shp <- st_transform(zip_shp, 32119)
 ```
@@ -35,7 +44,7 @@ I will map this approximate region using ZIP code region and roads data availabl
 
 I ran into a lot of trouble trying to combine roads and cut boundaries with the ZIP code regions. I was trying to make a boundary with the four highways but the individual data points for the roads were numerous to combine into one line string or multi-string. I decided to manually plot four points and connect them as a polygon to mark the region of interest. Then it was easier to intersect the ZIP code regions and roads to focus on the region of interest. I learned that manually plotting points is not uncommon for such a task.
 
-```{r boundaries}
+```{r boundaries, echo=TRUE, include=TRUE}
 # The boundaries can be manually created using estimated coordinates
 cut_poly <- 
   st_polygon(
@@ -52,7 +61,7 @@ cut_poly <-
 ```
 
 
-```{r region_map, include=FALSE}
+```{r region_map}
 
 # The region of interest extends into three ZIP code regions
 zips_sel <- 
@@ -96,11 +105,11 @@ durham <- zip_shp |> filter(CITY == "DURH")
 ```
 
 
-```{r base}
+```{r base, echo=TRUE, include=TRUE}
 
 base <- 
   leaflet(options = leafletOptions(preferCanvas = TRUE)) |>
-  addProviderTiles(providers$Esri) |>
+  addProviderTiles(providers$CartoDB) |>
   # ZIP code regions
   addPolygons(
     data = zips_cut,
@@ -128,11 +137,11 @@ base
 
 ```
 
-## EPA Data Analysis
+### Exploring EPA Data
 
-The previous studies have observed the Cadmium concentrations in water and soil and did not find a significant correlation with the blood Cadmium levels. However, there were no measurements of Cadmium in the air and considering that the Durham county has quite a few industries, it is worth checking the EPA data for emissions in general.
+The [previous studies](https://pubmed.ncbi.nlm.nih.gov/26449855/) have observed the Cadmium concentrations in water and soil, and did not find a significant correlation with the blood Cadmium levels. However, there were no measurements of Cadmium in the air and considering that the Durham county has quite a few industries, it is worth checking the EPA data for emissions in general.
 
-```{r epa_data_cleaning, include=FALSE}
+```{r epa_data_cleaning}
 
 epa_df <- read_csv("C:/Users/amaan/Desktop/Project/website/GIS_Data_Code/EPA_2023_nc.csv", col_names = TRUE)
 
@@ -158,14 +167,19 @@ epa_durham <-
   filter(City == "DURHAM") |>
   arrange(desc(Total_On_Site)) |>
   select(
-    Chemical,Facility_Name,
-    Unit,Total_On_Site,Fugitive_Air,Stack_Air,Water,Underground,
-    Industry,ZIP,Street_Address,Longitude,Latitude
+    Chemical,Facility_Name,ZIP,
+    Total_On_Site,Fugitive_Air,Stack_Air,Water,Underground,Unit,
+    Industry,Street_Address,Longitude,Latitude
     )
 
 ```
 
-`head(epa_durham,10)`
+```{r epa_data, include=TRUE}
+epa_durham |>
+  arrange(desc(Total_On_Site)) |>
+  select(Chemical,Facility_Name,ZIP,Total_On_Site) |>
+  head(10)
+```
 
 None of the emissions are Cadmium and Cadmium compounds.
 
@@ -174,9 +188,9 @@ The measurements for all emissions are in pounds here which allows for easy comp
 
 The facilities mostly have emissions under stack air which means the emissions are released through controlled airways, but Brenntag Mid-South mostly has emissions under fugitive air which means the emissions are leaked unintentionally and possibly due to faulty equipment.
 
-No emissions are released into the water or underground which matches the findings from the study a decade ago when no significant associations were found between Cadmium blood levels and Cadmium concentrations in water and soil, and possibly demonstrates that the finding still holds in the present as no emissions are released into the water or underground. 
+No emissions are released into the water or underground which matches the [findings from the study](https://pubmed.ncbi.nlm.nih.gov/26449855/) a decade ago when no significant associations were found between Cadmium blood levels and Cadmium concentrations in water and soil, and possibly demonstrates that the finding still holds in the present as no emissions are released into the water or underground. 
 
-```{r epa_data_anlaysis, include=FALSE}
+```{r epa_data_anlaysis}
 
 epa_locations <-
   epa_durham |>
@@ -195,7 +209,7 @@ A lot of the facilities with emissions are in the ZIP code regions covered by th
 
 I am used to scaling the data every time before clustering so I was getting unusual results until I realized that scaling is not needed here. For Geolocation data, latitude and longitude have meaningful raw values and an inherent spatial relationship in distance.
 
-```{r epa_data_clustering}
+```{r epa_data_clustering, echo=TRUE, include=TRUE}
 
 # Select the data for clustering
 epa_cluster <- 
@@ -203,7 +217,8 @@ epa_cluster <-
   select(Longitude,Latitude)
 # Create the plot to find a suitable k
 #* The default for k.max is 10 so set it manually to 4 because the number of clusters must be less than the number of data points for a meaningful clustering.
-fviz_nbclust(epa_cluster, kmeans, method = "wss", k.max = 4) +
+elbow_plot <- 
+  fviz_nbclust(epa_cluster, kmeans, method = "wss", k.max = 4) +
   labs(title = "Elbow Method Plot")
 # K-Means
 fit <- kmeans(epa_cluster, centers = 3, iter.max = 50, nstart = 20)
@@ -218,31 +233,24 @@ epa_k <-
     Latitude_Center = mean(Latitude)
   ) |>
   select(Cluster,Longitude_Center,Latitude_Center)
-epa_k
 
 ```
 
-```{r epa_map}
+```{r epa_map, include=TRUE}
 
-# Create an sf object for plotting
 epa_locations_sf <- st_as_sf(epa_k, coords = c("Longitude_Center", "Latitude_Center"), crs = 4269)
 epa_locations_sf <- st_transform(epa_locations_sf,st_crs(cut_poly))
+
 # Focus on the clusters in the region of interest
 epa_point <- st_intersection(epa_locations_sf,cut_poly)
-epa_point <- st_transform(epa_point,4269)
-
-ggplot() +
-  geom_sf(data = zips_cut) +
-  geom_sf(data = roads_cut, color = "black") +
-  geom_sf(data = cut_poly, fill = NA, color = "red", linewidth = 1) +
-  geom_sf(data = epa_point, color = "red") +
-  geom_sf_label(data = epa_point, aes(label = Cluster)) +
-  theme_minimal() +
-  coord_sf(datum = NA)
+epa_point <- st_transform(epa_point,4326)
 
 base |>
   addCircleMarkers(
     data = epa_point,
+    label = "Factory",
+    labelOptions = labelOptions(noHide = TRUE,textOnly = TRUE,
+                                direction = "bottom"),
     fill = "red",
     color = "red",
     weight = 5
@@ -251,3 +259,143 @@ base |>
 ```
 
 The region of interest contains the center of the cluster of the top facilities in terms of emission. Though Cadmium and Cadmium compounds are not emitted by any facility, some of the other chemicals that are released or leaked have been linked with low birth weight in animals and are a cause for concern for pregnant individuals in general.
+
+
+### Possible Subsidized Housing Options
+
+The data available for subsidized housing is from 2014 and unfortunately it has not been updated. Most of the subsidies have ended. The owners of these housing options are non-profits and the subsidies are rarely not renewed so we can assume the subsidies were eligible for renewal.
+
+```{r housing_data_cleaning}
+
+house_df <- read_csv("C:/Users/amaan/Desktop/Project/website/GIS_Data_Code/Durham_Subsidized_Housing_2014.csv", col_names = TRUE)
+
+house <- 
+  house_df |>
+  separate(
+    "Location 1", into = c("Street_Address","City_ZIP","Coordinates"), sep = "\n"
+    ) |>
+  separate(
+    "Coordinates", into = c("Latitude","Longitude"), sep = ","
+  ) |>
+  mutate(
+    across("Latitude", ~ str_remove_all(.x, "\\(")),
+    across("Longitude", ~ str_remove_all(.x, "\\)")),
+    across("City_ZIP", ~ str_sub(.x, 11))
+    ) |>
+  mutate(across(c("Longitude","Latitude"), ~ as.numeric(.x))) |>
+  filter(`Owner Type` == "Non-Profit") |>
+  select(-Street_Address)
+
+house_sf <- st_as_sf(house, coords = c("Longitude", "Latitude"), crs = 4269)
+house_sf <- st_transform(house_sf,st_crs(cut_poly))
+
+# Focus on the clusters in the region of interest
+house_points <- st_intersection(house_sf,cut_poly)
+house_points <- st_transform(house_points,4326)
+
+```
+
+These are the subsidized housing options in the region:
+
+```{r housing_map, include=TRUE}
+
+base |>
+  addCircleMarkers(
+    data = epa_point,
+    label = "Factory",
+    labelOptions = labelOptions(noHide = TRUE,textOnly = TRUE,
+                                direction = "bottom"),
+    fill = "red",
+    color = "red",
+    weight = 5
+  ) |>
+  addCircles(
+    data = house_points,
+    fill = "blue",
+    color = "blue",
+    weight = 5
+  )
+
+```
+
+We will be further exploring other environmental and infrastructural factors that affect health so for the sake of simplicity, it will be better to use a single housing data point, and so we can create clusters and use the cluster with the most houses as the single data point.
+
+```{r housing_data_clustering}
+
+houses <-
+  house |>
+  filter(`Property Name` %in% house_points$`Property Name`)
+
+# Select the data for clustering
+houses_cluster <- 
+  house |> 
+  filter(`Property Name` %in% house_points$`Property Name`) |>
+  select(Longitude,Latitude)
+# Create the plot to find a suitable k
+#* The default for k.max is 10 so set it manually to 7 because the number of clusters must be less than the number of data points for a meaningful clustering.
+elbow_plot <-
+  fviz_nbclust(houses_cluster, kmeans, method = "wss", k.max = 7) +
+  labs(title = "Elbow Method Plot")
+
+# K-Means
+fit <- kmeans(houses_cluster, centers = 3, iter.max = 50, nstart = 20)
+houses$Cluster <- fit$cluster
+
+# Calculate the mean/centroid of each cluster for plotting
+house_k <-
+  houses |>
+  group_by(Cluster) |>
+  summarize(
+    Longitude_Center = mean(Longitude),
+    Latitude_Center = mean(Latitude)
+  ) |>
+  select(Cluster,Longitude_Center,Latitude_Center)
+
+```
+
+
+```{r housing_cluster_data, include=TRUE}
+
+houses |>
+  mutate(`Property Name` = str_to_title(`Property Name`)) |>
+  select(`Property Name`,Cluster,`Total Units`,`Active Subsidies`,
+         `Owner Type`)
+
+```
+
+We see that one of the clusters has five houses with plenty of total units. Unfortunately we do not know if and how many subsidies are active but we can try to inquire later.
+
+```{r housing_cluster_map, include=TRUE}
+
+house_cluster_sf <- st_as_sf(house_k, coords = c("Longitude_Center", "Latitude_Center"), crs = 4269)
+house_cluster_sf <- st_transform(house_cluster_sf,st_crs(cut_poly))
+
+# Focus on cluster 1 which has the most houses
+houses_point1 <-
+  house_cluster_sf |>
+  filter(Cluster == 1)
+houses_point1 <- st_transform(houses_point1,4326)
+
+base |>
+  addCircleMarkers(
+    data = epa_point,
+    label = "Factory",
+    labelOptions = labelOptions(noHide = TRUE,textOnly = TRUE,
+                                direction = "bottom"),
+    fill = "red",
+    color = "red",
+    weight = 5
+  ) |>
+  addCircleMarkers(
+    data = houses_point1,
+    label = "House",
+    labelOptions = labelOptions(noHide = TRUE,textOnly = TRUE,
+                                direction = "bottom"),
+    fill = "blue",
+    color = "blue",
+    weight = 5
+  )
+
+```
+
+

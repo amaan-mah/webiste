@@ -1,0 +1,23 @@
+
+Houses
+
+ggplot() +
+  geom_sf(data = zips_cut) +
+  geom_sf(data = roads_cut, color = "black") +
+  geom_sf(data = cut_poly, fill = NA, color = "red", linewidth = 1) +
+  geom_sf(data = epa_point, color = "red") +
+  geom_sf(data = house_points, color = "brown") +
+  theme_minimal() +
+  coord_sf(datum = NA)
+
+House Cluster
+  
+ggplot() +
+  geom_sf(data = zips_cut) +
+  geom_sf(data = roads_cut, color = "black") +
+  geom_sf(data = cut_poly, fill = NA, color = "red", linewidth = 1) +
+  geom_sf(data = epa_point, color = "red") +
+  geom_sf(data = houses_point1, color = "brown") +
+  geom_sf_label(data = houses_point1, aes(label = Cluster)) +
+  theme_minimal() +
+  coord_sf(datum = NA)
