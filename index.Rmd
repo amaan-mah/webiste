@@ -4,6 +4,11 @@ author: "Mohammed Hussain"
 output: 
   html_document:
     self_contained: false
+    toc: true
+    toc_float:
+      collapsed: false
+      smooth_scroll: true
+      style: "float"
 ---
 
 <style>
@@ -405,6 +410,54 @@ base |>
 
 ```
 
+### GoDurham Bus Routes
+
+
+```{r routes_data_cleaning}
+
+route_shp_file <- st_read("C:/Users/amaan/Desktop/Project/GIS/PublicTransit_Routes/GoDurham_Bus_Routes.shp",quiet = TRUE)
+
+route_shp_file$line_name
+
+route_shp <-
+  route_shp_file |>
+  separate(
+    line_name, into = c("line_number"), sep = " "
+  )
+routes <- st_transform(route_shp,32119)
+route3C <- 
+  routes |> 
+  filter(line_number == "3C")
+
+routes <- st_transform(routes,4326)
+route3C <- st_transform(route3C,4326)
+
+```
+
+
+
+```{r routes_map}
+
+base |>
+  addCircleMarkers(
+    data = houses_point1,
+    label = "House",
+    labelOptions = labelOptions(noHide = TRUE,textOnly = TRUE,
+                                direction = "bottom"),
+    fill = "blue",
+    color = "blue",
+    weight = 5
+  ) |>
+  addPolylines(
+    data = route3C,
+    label = ~line_number,
+    color = "lightblue",
+    weight = 1
+  )
+
+```
+
+
 ### Acccess to Grocery and Healthy Foods
 
 There was a study that explored the impact of a Mediterranean diet on blood Cadmium levels, and though there was no significant association with diet, the conclusion of the study was that diet is a factor that is still worth exploring [2](https://pmc.ncbi.nlm.nih.gov/articles/PMC7712046/). In any case then, it also helps to see if free food is available for the residents to possibly use it as places to distribute foods that can potentially affect blood Cadmium levels.
@@ -483,5 +536,4 @@ base |>
     weight = 5
   )   
 ```
-
 

@@ -22,6 +22,17 @@ ggplot() +
   theme_minimal() +
   coord_sf(datum = NA)
   
+Bus Routes
+
+ggplot() +
+  geom_sf(data = zip_shp) +
+  geom_sf(data = cut_poly, fill = NA, color = "red", linewidth = 1) +
+  geom_sf(data = houses_point1, color = "yellow") +
+  geom_sf(data = routes, color = "brown") +
+  geom_sf(data = route3C, color = "green") +
+  theme_minimal() +
+  coord_sf(datum = NA)
+  
 Food Pantries
 
 ggplot() +
